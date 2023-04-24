@@ -1,0 +1,27 @@
+name: Build and release tag
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-binary:
+    name: Build plugin binary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build binary
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: make release
+
+      - name: Release tag
+        uses: softprops/action-gh-release@v1
+        with:
+          files: bin/*
