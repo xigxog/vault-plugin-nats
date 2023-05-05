@@ -1,5 +1,7 @@
 # Vault NATS Secrets Engine
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/xigxog/vault-plugin-nats)](https://goreportcard.com/report/github.com/xigxog/vault-plugin-nats)
+
 This engine generates and manages NATS NKeys for Operators, Accounts, and Users. The NKeys can then be used to generate JWTs for Users and Accounts. The secrets engine can be used to implement [NATS decentralized authentication/authorization](https://docs.nats.io/running-a-nats-service/nats_admin/security/jwt#decentralized-authentication-authorization-using-jwt) utilzing Vault instead of `nsc`.
 
 ## Enable Engine
