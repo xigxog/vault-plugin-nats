@@ -10,13 +10,18 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-const operatorName string = "operator"
-const systemAccountName string = "system_account"
-const sysAccountUserName string = "system_account_user"
+const (
+	operatorName     = "operator"
+	sysAccountName   = "system_account"
+	sysAccountUser   = "system_account_user"
+	accountSrvURLKey = "account_jwt_server_url"
+	svcURLKey        = "service_url"
+	tagsKey          = "tags"
+)
 
 type NKeyWithToken struct {
 	PublicKey string `json:"public_key"`
-	Jwt       string `json:"jwt"`
+	JWT       string `json:"jwt"`
 }
 
 func (b *backend) configPaths() []*framework.Path {
@@ -25,17 +30,19 @@ func (b *backend) configPaths() []*framework.Path {
 			Pattern:      "config",
 			HelpSynopsis: "Configures the plugin with various NATS server configuration.",
 			Fields: map[string]*framework.FieldSchema{
-				"account-jwt-server-url": {
-					Type:    framework.TypeString,
-					Default: "nats://127.0.0.1:4222",
+				accountSrvURLKey: {
+					Type:        framework.TypeString,
+					Description: "Account JWT server URL, only http/https/nats urls supported.",
+					Default:     "nats://127.0.0.1:4222",
 				},
-				"service-url": {
-					Type:    framework.TypeString,
-					Default: "nats://127.0.0.1:4222",
+				svcURLKey: {
+					Type:        framework.TypeString,
+					Description: "NATS server URL, only nats/tls urls supported.",
+					Default:     "nats://127.0.0.1:4222",
 				},
-				"tag": {
+				tagsKey: {
 					Type:        framework.TypeCommaStringSlice,
-					Description: `Comma separated string or list of tags`,
+					Description: "Comma separated string or list of tags",
 				},
 			},
 			ExistenceCheck: b.handleExistenceCheck,
@@ -57,16 +64,16 @@ func (b *backend) readConfiguration(ctx context.Context, req *logical.Request, d
 	if err != nil {
 		return nil, err
 	}
-	operatorJwt, err := b.readJwt(ctx, req, operatorName)
+	operatorJWT, err := b.readJWT(ctx, req, operatorName)
 	if err != nil {
 		return nil, err
 	}
 
-	sysAccountIdentity, err := b.readIdentity(ctx, req, systemAccountName)
+	sysAccountIdentity, err := b.readIdentity(ctx, req, sysAccountName)
 	if err != nil {
 		return nil, err
 	}
-	systemAccountJwt, err := b.readJwt(ctx, req, systemAccountName)
+	sysAccountJWT, err := b.readJWT(ctx, req, sysAccountName)
 	if err != nil {
 		return nil, err
 	}
@@ -75,11 +82,11 @@ func (b *backend) readConfiguration(ctx context.Context, req *logical.Request, d
 		Data: map[string]interface{}{
 			operatorIdentity.Name: NKeyWithToken{
 				PublicKey: operatorIdentity.PublicKey,
-				Jwt:       operatorJwt,
+				JWT:       operatorJWT,
 			},
 			sysAccountIdentity.Name: NKeyWithToken{
 				PublicKey: sysAccountIdentity.PublicKey,
-				Jwt:       systemAccountJwt,
+				JWT:       sysAccountJWT,
 			},
 		},
 	}, nil
@@ -90,64 +97,65 @@ func (b *backend) saveConfiguration(ctx context.Context, req *logical.Request, d
 		return nil, fmt.Errorf("client token empty")
 	}
 
-	var operatorJwt string
-	var systemAccountJwt string
-
-	operatorIdentity, err := b.readIdentity(ctx, req, operatorName)
+	operator, err := b.readIdentity(ctx, req, operatorName)
 	if err != nil {
 		return nil, err
 	}
-	if operatorIdentity == nil {
-		operatorIdentity, err = b.createIdentity(ctx, req, nkeys.PrefixByteOperator, operatorName)
+	if operator == nil {
+		b.Logger().Debug("operator identity does not exist, creating it")
+		operator, err = b.createIdentity(ctx, req, nkeys.PrefixByteOperator, operatorName)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	sysAccountIdentity, err := b.readIdentity(ctx, req, systemAccountName)
+	sysAccount, err := b.readIdentity(ctx, req, sysAccountName)
 	if err != nil {
 		return nil, err
 	}
-	if sysAccountIdentity == nil {
-		if sysAccountIdentity, err = b.createIdentity(ctx, req, nkeys.PrefixByteAccount, systemAccountName); err != nil {
+	if sysAccount == nil {
+		b.Logger().Debug("system account identity does not exist, creating it")
+		if sysAccount, err = b.createIdentity(ctx, req, nkeys.PrefixByteAccount, sysAccountName); err != nil {
 			return nil, err
 		}
 	}
 
-	accountServerUrl := data.Get("account-jwt-server-url").(string)
-	operatorServiceUrl := data.Get("service-url").(string)
-	tags := data.Get("tag").([]string)
-
-	if operatorJwt, err = b.createOperatorToken(ctx, req, operatorIdentity, sysAccountIdentity,
-		accountServerUrl, []string{operatorServiceUrl}, tags); err != nil {
-		return nil, err
-	} else if systemAccountJwt, err = b.createSystemAccountToken(ctx, req, operatorIdentity, sysAccountIdentity); err != nil {
+	operatorJWT, err := b.createOperatorToken(ctx, req, data, operator, sysAccount)
+	if err != nil {
 		return nil, err
 	}
 
-	if userIdentity, err := b.readIdentity(ctx, req, sysAccountUserName); err != nil {
+	sysAccountJWT, err := b.createSysAccountToken(ctx, req, operator, sysAccount)
+	if err != nil {
 		return nil, err
-	} else if userIdentity == nil {
-		if _, err = b.createIdentity(ctx, req, nkeys.PrefixByteUser, sysAccountUserName); err != nil {
+	}
+
+	userIdentity, err := b.readIdentity(ctx, req, sysAccountUser)
+	if err != nil {
+		return nil, err
+	}
+	if userIdentity == nil {
+		if _, err = b.createIdentity(ctx, req, nkeys.PrefixByteUser, sysAccountUser); err != nil {
 			return nil, err
 		}
 	}
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			operatorIdentity.Name: NKeyWithToken{
-				PublicKey: operatorIdentity.PublicKey,
-				Jwt:       operatorJwt,
+			operator.Name: NKeyWithToken{
+				PublicKey: operator.PublicKey,
+				JWT:       operatorJWT,
 			},
-			sysAccountIdentity.Name: NKeyWithToken{
-				PublicKey: sysAccountIdentity.PublicKey,
-				Jwt:       systemAccountJwt,
+			sysAccount.Name: NKeyWithToken{
+				PublicKey: sysAccount.PublicKey,
+				JWT:       sysAccountJWT,
 			},
 		},
 	}, nil
 }
 
-func (b *backend) createSystemAccountToken(ctx context.Context, req *logical.Request, operatorIdentity *Identity, sysAccountIdentity *Identity) (string, error) {
+func (b *backend) createSysAccountToken(ctx context.Context, req *logical.Request,
+	operator *Identity, sysAccount *Identity) (string, error) {
 
 	var signingPublicKey string
 
@@ -157,11 +165,11 @@ func (b *backend) createSystemAccountToken(ctx context.Context, req *logical.Req
 		return "", err
 	}
 
-	sysAccClaim := jwt.NewAccountClaims(sysAccountIdentity.PublicKey)
-	sysAccClaim.Name = "SYS"
-	sysAccClaim.SigningKeys.Add(signingPublicKey)
+	sysAccountClaim := jwt.NewAccountClaims(sysAccount.PublicKey)
+	sysAccountClaim.Name = "SYS"
+	sysAccountClaim.SigningKeys.Add(signingPublicKey)
 
-	sysAccClaim.Exports = jwt.Exports{&jwt.Export{
+	sysAccountClaim.Exports = jwt.Exports{&jwt.Export{
 		Name:                 "account-monitoring-services",
 		Subject:              "$SYS.REQ.ACCOUNT.*.*",
 		Type:                 jwt.Service,
@@ -182,34 +190,38 @@ func (b *backend) createSystemAccountToken(ctx context.Context, req *logical.Req
 		},
 	}}
 
-	var sysAccJwt string
-	if opKp, err := nkeys.FromSeed([]byte(operatorIdentity.Seed)); err != nil {
+	var sysAccountJWT string
+	if opKp, err := nkeys.FromSeed([]byte(operator.Seed)); err != nil {
 		return "", err
-	} else if sysAccJwt, err = sysAccClaim.Encode(opKp); err != nil {
-		return "", err
-	}
-
-	if err := b.storeJwt(ctx, req, sysAccountIdentity.Name, sysAccJwt); err != nil {
+	} else if sysAccountJWT, err = sysAccountClaim.Encode(opKp); err != nil {
 		return "", err
 	}
 
-	return sysAccJwt, nil
+	if err := b.storeJWT(ctx, req, sysAccount.Name, sysAccountJWT); err != nil {
+		return "", err
+	}
 
+	return sysAccountJWT, nil
 }
 
-func (b *backend) createOperatorToken(ctx context.Context, req *logical.Request, operatorIdentity *Identity,
-	systemAccountIdentity *Identity, accountServerUrl string, operatorServiceUrls []string, tags []string) (string, error) {
+func (b *backend) createOperatorToken(ctx context.Context, req *logical.Request, data *framework.FieldData,
+	operator *Identity, sysAccount *Identity) (string, error) {
 
-	keyPair, err := nkeys.FromSeed([]byte(operatorIdentity.Seed))
+	keyPair, err := nkeys.FromSeed([]byte(operator.Seed))
 	if err != nil {
 		return "", err
 	}
-	v := jwt.NewOperatorClaims(string(operatorIdentity.PublicKey))
-	v.Name = operatorIdentity.Name
+
+	accSrvURL := data.Get(accountSrvURLKey).(string)
+	svcURL := data.Get(svcURLKey).(string)
+	tags := data.Get(tagsKey).([]string)
+
+	v := jwt.NewOperatorClaims(string(operator.PublicKey))
+	v.Name = operator.Name
 	v.Operator = jwt.Operator{
-		AccountServerURL:    accountServerUrl,
-		OperatorServiceURLs: operatorServiceUrls,
-		SystemAccount:       systemAccountIdentity.PublicKey,
+		AccountServerURL:    accSrvURL,
+		OperatorServiceURLs: []string{svcURL},
+		SystemAccount:       sysAccount.PublicKey,
 		GenericFields: jwt.GenericFields{
 			Tags: tags,
 		},
@@ -220,7 +232,7 @@ func (b *backend) createOperatorToken(ctx context.Context, req *logical.Request,
 		return "", err
 	}
 
-	if err = b.storeJwt(ctx, req, operatorIdentity.Name, token); err != nil {
+	if err = b.storeJWT(ctx, req, operator.Name, token); err != nil {
 		return "", err
 	}
 

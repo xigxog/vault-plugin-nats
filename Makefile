@@ -24,9 +24,9 @@ start: build
 
 .PHONY: enable
 enable: export VAULT_ADDR=http://127.0.0.1:8200
-enable:
+enable: build
 	vault login root; \
-	vault secrets enable -path=nats ${bin}; \
+	vault secrets enable -path=nats ${bin}
 
 .PHONY: clean
 clean:

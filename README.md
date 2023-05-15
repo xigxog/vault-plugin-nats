@@ -2,7 +2,11 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/xigxog/vault-plugin-nats)](https://goreportcard.com/report/github.com/xigxog/vault-plugin-nats)
 
-This engine generates and manages NATS NKeys for Operators, Accounts, and Users. The NKeys can then be used to generate JWTs for Users and Accounts. The secrets engine can be used to implement [NATS decentralized authentication/authorization](https://docs.nats.io/running-a-nats-service/nats_admin/security/jwt#decentralized-authentication-authorization-using-jwt) utilzing Vault instead of `nsc`.
+This engine generates and manages NATS NKeys for Operators, Accounts, and Users.
+The NKeys can then be used to generate JWTs for Users and Accounts. The secrets
+engine can be used to implement [NATS decentralized
+authentication/authorization](https://docs.nats.io/running-a-nats-service/nats_admin/security/jwt#decentralized-authentication-authorization-using-jwt)
+utilzing Vault instead of `nsc`.
 
 ## Enable Engine
 
@@ -16,7 +20,8 @@ vault secrets enable [-path {cluster name}] vault-plugin-nats
 
 ## Create Configuration
 
-This endpoint configures the plugin with various NATS server configuration. It returns the Operator and System Account JWTs.
+This endpoint configures the plugin with various NATS server configuration. It
+returns the Operator and System Account JWTs.
 
 | Method | Path                 |
 | ------ | -------------------- |
@@ -24,12 +29,12 @@ This endpoint configures the plugin with various NATS server configuration. It r
 
 ### Parameters
 
-| Name                   | Type    | Description                                                                                  |
-| ---------------------- | ------- | -------------------------------------------------------------------------------------------- |
-| `:mount-path`          | String  | The mount path of the plugin. This is specified as part of the URL.                          |
-| account_jwt_server_url | URL     | Account JWT server URL, only http/https/nats urls supported (default: nats://127.0.0.1:4222) |
-| service_url            | URL     | NATS server URL, only nats/tls urls supported (default: nats://127.0.0.1:4222)               |
-| tags                   | Strings | Comma separated list of user tags (optional)                                                 |
+| Name                   | Type    | Description                                                                                   |
+| ---------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `:mount-path`          | String  | The mount path of the plugin. This is specified as part of the URL.                           |
+| account_jwt_server_url | URL     | Account JWT server URL, only http/https/nats urls supported. (default: nats://127.0.0.1:4222) |
+| service_url            | URL     | NATS server URL, only nats/tls urls supported. (default: nats://127.0.0.1:4222)               |
+| tags                   | Strings | Comma separated list of user tags. (optional)                                                 |
 
 ### Sample Payload
 
@@ -70,7 +75,10 @@ curl --header "X-Vault-Token: $VAULT_TOKEN" \
 
 ## Generate JWTs
 
-This endpoint generates User and Account JWTs using the provided configuration. If a User JWT is being generated the name of a previously created Account must be provided. Additionaly for User JWTs a signed nonce required to authenticate with the NATS server is returned.
+This endpoint generates User and Account JWTs using the provided configuration.
+If a User JWT is being generated the name of a previously created Account must
+be provided. Additionaly for User JWTs a signed nonce required to authenticate
+with the NATS server is returned.
 
 | Methods | Path                      |
 | ------- | ------------------------- |
@@ -78,28 +86,51 @@ This endpoint generates User and Account JWTs using the provided configuration. 
 
 ### Parameters
 
-| Name       | Type                     | Description                                                                                                                                                                                                                                                      |
-| ---------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| mount-path | String                   | The mount path of the plugin. This is specified as part of the URL.                                                                                                                                                                                              |
-| name       | String                   | The name of the account for which to create a JWT.                                                                                                                                                                                                               |
-| type       | Enum [`account`, `user`] | Type of JWT to generate (required)                                                                                                                                                                                                                               |
-| account    | String                   | Name of a previously generated Account that should be used to sign the User JWT (required if type=user)                                                                                                                                                          |
-| nonce      | String                   | A challenge string that needs to be signed before this JWT can be used in NATS (required if type=user)                                                                                                                                                           |
-| config     | JSON                     | Configuration for either [Account](https://github.com/nats-io/jwt/blob/e11ce317263cef69619fc1ca743b195d02aa1d8a/account_claims.go#L57) or [User](https://github.com/nats-io/jwt/blob/e11ce317263cef69619fc1ca743b195d02aa1d8a/user_claims.go#L25) JWT (required) |
+| Name       | Type                     | Description                                                                                                                                                                                                                                                       |
+| ---------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| mount-path | String                   | The mount path of the plugin. This is specified as part of the URL.                                                                                                                                                                                               |
+| name       | String                   | The name of the account or user for which to create a JWT.                                                                                                                                                                                                        |
+| type       | Enum [`account`, `user`] | Type of JWT to generate. (required)                                                                                                                                                                                                                               |
+| account    | String                   | Name of a previously generated Account that should be used to sign the User JWT. (required if type=user)                                                                                                                                                          |
+| config     | JSON                     | Configuration for either [Account](https://github.com/nats-io/jwt/blob/e11ce317263cef69619fc1ca743b195d02aa1d8a/account_claims.go#L57) or [User](https://github.com/nats-io/jwt/blob/e11ce317263cef69619fc1ca743b195d02aa1d8a/user_claims.go#L25) JWT. (required) |
 
 ### JWT Sample Response
 
 ```json
 {
-  "jwt": "eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJPSVhTUUw2Rk1YNlJVTVVaWUc1RVA3RktTTjVKQjRZNVk3VFdJRkNHRk9ORERBV0VITEpBIiwiaWF0IjoxNjY2MjgzOTE3LCJpc3MiOiJBQ05WS1RTRFhMT0pLUjVFWDdSSVNSNUIyTFRINktVQkcyRUxNSTVJMktaV0dQTVBON0RHN1NOWiIsIm5hbWUiOiJzeXMiLCJzdWIiOiJVQ1RSM0hIWU42WUJGTTNJN1hIWkVRNkFKWlFGN1pHQVVFQ09VTVBGRjZaM0JURDQ0RVo0U0NXSSIsIm5hdHMiOnsicHViIjp7fSwic3ViIjp7fSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwiaXNzdWVyX2FjY291bnQiOiJBQU41M0NLUkJOUUVKN0NYMjRCM1NPU0JDS1ZCT1VDWkRYRkNaWkhEMkdDUTJOWjZEV1FHRVNKNiIsInR5cGUiOiJ1c2VyIiwidmVyc2lvbiI6Mn19.B3iUDYznSKSvcz-Xozm9oaZb_aaFgiYBCLiH5aEGv156PwDmilrK6CRzXg5fWiRt3Hewn-4EBsUqiXntOmqmBw",
+  "jwt": "eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJPSVhTUUw2Rk1YNlJVTVVaWUc1RVA3RktTTjVKQjRZNVk3VFdJRkNHRk9ORERBV0VITEpBIiwiaWF0IjoxNjY2MjgzOTE3LCJpc3MiOiJBQ05WS1RTRFhMT0pLUjVFWDdSSVNSNUIyTFRINktVQkcyRUxNSTVJMktaV0dQTVBON0RHN1NOWiIsIm5hbWUiOiJzeXMiLCJzdWIiOiJVQ1RSM0hIWU42WUJGTTNJN1hIWkVRNkFKWlFGN1pHQVVFQ09VTVBGRjZaM0JURDQ0RVo0U0NXSSIsIm5hdHMiOnsicHViIjp7fSwic3ViIjp7fSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwiaXNzdWVyX2FjY291bnQiOiJBQU41M0NLUkJOUUVKN0NYMjRCM1NPU0JDS1ZCT1VDWkRYRkNaWkhEMkdDUTJOWjZEV1FHRVNKNiIsInR5cGUiOiJ1c2VyIiwidmVyc2lvbiI6Mn19.B3iUDYznSKSvcz-Xozm9oaZb_aaFgiYBCLiH5aEGv156PwDmilrK6CRzXg5fWiRt3Hewn-4EBsUqiXntOmqmBw"
+}
+```
+
+## Sign Nonce
+
+This endpoint signs the nonce (challenge string) returned by NATS during
+authentication. Signing can only be used with User JWTs.
+
+| Methods | Path                           |
+| ------- | ------------------------------ |
+| POST    | `:mount-path`/jwt/`:name`/sign |
+
+### Parameters
+
+| Name       | Type   | Description                                                          |
+| ---------- | ------ | -------------------------------------------------------------------- |
+| mount-path | String | The mount path of the plugin. This is specified as part of the URL.  |
+| name       | String | The name of the user that is used to sign the nonce.                 |
+| nonce      | String | The nonce (challenge string) returned by NATS during authentication. |
+
+### JWT Sample Response
+
+```json
+{
   "signed_nonce": "RA2ZdifT+iwAZVtr6Lg8Nqkn2WPHHOaf70Qo+I2o214QDYK/JFHhWZe5h7uEc+vE+U6d/TL69/l5TnFhRmhYCg=="
 }
 ```
 
 ## Local Development
+
 ```shell
-make build
 make start
 make enable
-test/createAccounts.sh
+./hack/test.sh
 ```

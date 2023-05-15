@@ -40,8 +40,8 @@ func (b *backend) createIdentity(ctx context.Context, req *logical.Request, keyT
 	if err != nil {
 		return nil, fmt.Errorf("failed to store identity '%s': %w", name, err)
 	}
-	return identity, err
 
+	return identity, err
 }
 
 func (b *backend) readIdentity(ctx context.Context, req *logical.Request, name string) (*Identity, error) {
@@ -91,6 +91,7 @@ func (b *backend) storeIdentity(ctx context.Context, req *logical.Request, name 
 	if err != nil {
 		return nil, err
 	}
+
 	return identity, nil
 }
 
@@ -112,5 +113,6 @@ func PrefixByteFromString(p string) nkeys.PrefixByte {
 	case "private":
 		return nkeys.PrefixBytePrivate
 	}
+
 	return nkeys.PrefixByteUnknown
 }

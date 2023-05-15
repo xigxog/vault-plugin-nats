@@ -10,56 +10,56 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-func (b *backend) jwtPaths() []*framework.Path {
+const (
+	nameKey    = "name"
+	typeKey    = "type"
+	accountKey = "account"
+	configKey  = "config"
+)
 
+func (b *backend) jwtPaths() []*framework.Path {
 	var accountTypes []interface{}
 	accountTypes = append(accountTypes, "account")
 	accountTypes = append(accountTypes, "user")
 
 	return []*framework.Path{
 		{
-			Pattern:      "jwts/" + framework.GenericNameRegex("name"),
+			Pattern:      pathPrefix + framework.GenericNameRegex(nameKey),
 			HelpSynopsis: "Generates a JWT for an identity.",
 			Fields: map[string]*framework.FieldSchema{
-				"name": {Type: framework.TypeString},
-				"type": {
+				nameKey: {Type: framework.TypeString},
+				typeKey: {
 					Type:          framework.TypeString,
+					Description:   "Type of JWT to generate.",
 					Default:       "user",
 					AllowedValues: accountTypes,
 					Required:      true,
 				},
-				"account": {
-					Type: framework.TypeString,
-					Description: `Name of a previously generated Account that should be used to sign 
-					the User JWT (required if type=user)`,
-				},
-				"config": {
-					Type:        framework.TypeMap,
-					Description: `Configuration for either Account or User JWT (required)`,
-					Required:    true,
-				},
-				"nonce": {
+				accountKey: {
 					Type:        framework.TypeString,
-					Description: `The nonce issued by Nats, which must be signed in order to use the JWT`,
+					Description: "Name of a previously generated Account that should be used to sign the User JWT. (required if type=user)",
+				},
+				configKey: {
+					Type:        framework.TypeMap,
+					Description: "Configuration for either Account or User JWT. (required)",
 					Required:    true,
 				},
 			},
 			ExistenceCheck: b.handleExistenceCheck,
 			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.CreateOperation: b.createIdentityJwt,
+				logical.CreateOperation: b.createIdentityJWT,
 			},
 		},
 	}
 }
 
-func (b *backend) createIdentityJwt(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-
+func (b *backend) createIdentityJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	if req.ClientToken == "" {
 		return nil, fmt.Errorf("client token empty")
 	}
 
-	name := data.Get("name").(string)
-	identityType := PrefixByteFromString(data.Get("type").(string))
+	name := data.Get(nameKey).(string)
+	identityType := PrefixByteFromString(data.Get(typeKey).(string))
 
 	identity, err := b.readIdentity(ctx, req, name)
 	if err != nil {
@@ -73,14 +73,13 @@ func (b *backend) createIdentityJwt(ctx context.Context, req *logical.Request, d
 	}
 
 	var token string
-	var signedNonce []byte
 	switch identityType {
 	case nkeys.PrefixByteAccount:
 		if token, err = b.createAccountToken(ctx, req, data, identity); err != nil {
 			return nil, err
 		}
 	case nkeys.PrefixByteUser:
-		if token, signedNonce, err = b.createUserToken(ctx, req, data, identity); err != nil {
+		if token, err = b.createUserToken(ctx, req, data, identity); err != nil {
 			return nil, err
 		}
 	}
@@ -88,12 +87,8 @@ func (b *backend) createIdentityJwt(ctx context.Context, req *logical.Request, d
 	returnData := map[string]interface{}{
 		identity.Name: NKeyWithToken{
 			PublicKey: identity.PublicKey,
-			Jwt:       token,
+			JWT:       token,
 		},
-	}
-
-	if signedNonce != nil {
-		returnData["signed_nonce"] = signedNonce
 	}
 
 	return &logical.Response{
@@ -105,7 +100,7 @@ func (b *backend) createAccountToken(ctx context.Context, req *logical.Request, 
 	identity *Identity) (string, error) {
 
 	accountConfig := &jwt.Account{}
-	b.mapToStruct(data.Get("config"), accountConfig)
+	b.mapToStruct(data.Get(configKey), accountConfig)
 
 	issuer, err := b.readIdentity(ctx, req, "operator")
 	if err != nil {
@@ -133,27 +128,27 @@ func (b *backend) createAccountToken(ctx context.Context, req *logical.Request, 
 }
 
 func (b *backend) createUserToken(ctx context.Context, req *logical.Request, data *framework.FieldData,
-	identity *Identity) (string, []byte, error) {
+	identity *Identity) (string, error) {
 
-	issuerName := data.Get("account").(string)
+	issuerName := data.Get(accountKey).(string)
 	if issuerName == "" {
-		return "", nil, fmt.Errorf("must pass an account to sign the user token")
+		return "", fmt.Errorf("must pass an account to sign the user token")
 	}
 
 	userConfig := &jwt.User{}
-	b.mapToStruct(data.Get("config"), userConfig)
+	b.mapToStruct(data.Get(configKey), userConfig)
 
 	issuer, err := b.readIdentity(ctx, req, issuerName)
 	if err != nil {
-		return "", nil, fmt.Errorf("error reading '%s' identity: %w", issuerName, err)
+		return "", fmt.Errorf("error reading '%s' identity: %w", issuerName, err)
 	}
 	if issuer == nil {
-		return "", nil, fmt.Errorf("'%s' identity not found", issuerName)
+		return "", fmt.Errorf("'%s' identity not found", issuerName)
 	}
 
 	keyPair, err := nkeys.FromSeed([]byte(issuer.Seed))
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 
 	claims := jwt.NewUserClaims(string(identity.PublicKey))
@@ -162,24 +157,15 @@ func (b *backend) createUserToken(ctx context.Context, req *logical.Request, dat
 
 	token, err := claims.Encode(keyPair)
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 
-	nonce := data.Get("nonce")
-
-	if nonce != nil {
-		signedNonce, err := b.signNonce(issuer, nonce.(string))
-		if err != nil {
-			return "", nil, err
-		}
-		return token, signedNonce, nil
-	}
-
-	return token, nil, nil
+	return token, nil
 }
 
-func (b *backend) readJwt(ctx context.Context, req *logical.Request, name string) (string, error) {
-	path := fmt.Sprintf("jwts/%s", name)
+func (b *backend) readJWT(ctx context.Context, req *logical.Request, name string) (string, error) {
+	path := fmt.Sprintf("%s%s", pathPrefix, name)
+
 	entry, err := req.Storage.Get(ctx, path)
 	if err != nil {
 		return "", err
@@ -191,9 +177,8 @@ func (b *backend) readJwt(ctx context.Context, req *logical.Request, name string
 	return string(entry.Value), nil
 }
 
-func (b *backend) storeJwt(ctx context.Context, req *logical.Request, name string, token string) error {
-
-	path := fmt.Sprintf("jwts/%s", name)
+func (b *backend) storeJWT(ctx context.Context, req *logical.Request, name string, token string) error {
+	path := fmt.Sprintf("%s%s", pathPrefix, name)
 
 	err := req.Storage.Put(ctx, &logical.StorageEntry{
 		Key:   path,
@@ -203,5 +188,6 @@ func (b *backend) storeJwt(ctx context.Context, req *logical.Request, name strin
 	if err != nil {
 		return fmt.Errorf("failed to store JWT for %s: %w", name, err)
 	}
+
 	return nil
 }

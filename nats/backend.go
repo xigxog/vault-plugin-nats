@@ -11,8 +11,12 @@ import (
 )
 
 const pluginHelp = `
-The Nats secret engine for managing Operators, Accounts, and Users.
+The NATS secret engine for managing Operators, Accounts, and Users.
 `
+
+const (
+	pathPrefix = "jwt/"
+)
 
 type backend struct {
 	*framework.Backend
@@ -46,7 +50,7 @@ func newBackend() (*backend, error) {
 		Paths: framework.PathAppend(
 			b.configPaths(),
 			b.jwtPaths(),
-			b.signaturePaths(),
+			b.signPaths(),
 		),
 	}
 
@@ -73,5 +77,6 @@ func (b *backend) mapToStruct(data interface{}, mappedStruct any) error {
 	if err := json.Unmarshal(jsonStr, mappedStruct); err != nil {
 		return fmt.Errorf("failed to deserialize user config json: %w", err)
 	}
+
 	return nil
 }

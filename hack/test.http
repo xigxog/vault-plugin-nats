@@ -4,7 +4,7 @@
 @base = http://127.0.0.1:8200/v1/nats
 @token = root
 
-### Create Nats Config
+### Create NATS Config
 POST {{base}}/config
 X-Vault-Token: {{token}}
 Content-Type: application/json
@@ -16,7 +16,7 @@ Content-Type: application/json
 }
 
 ### Get JWT for a new Account
-POST {{base}}/jwts/my_account
+POST {{base}}/jwt/my_account
 X-Vault-Token: {{token}}
 Content-Type: application/json 
 
@@ -47,7 +47,7 @@ Content-Type: application/json
 }
 
 ### Get JWT for a new User signed by our new account
-POST {{base}}/jwts/my_user
+POST {{base}}/jwt/my_user
 X-Vault-Token: {{token}}
 Content-Type: application/json
 
@@ -63,8 +63,8 @@ Content-Type: application/json
     }
 }
 
-### Sign a nonce using the same account that signed the User JWT
-POST {{base}}/sign
+### Sign a nonce using the User JWT
+POST {{base}}/jwt/my_user/sign
 X-Vault-Token: {{token}}
 Content-Type: application/json
 
