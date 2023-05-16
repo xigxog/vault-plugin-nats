@@ -9,14 +9,10 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-const (
-	nonceKey = "nonce"
-)
-
 func (b *backend) signPaths() []*framework.Path {
 	return []*framework.Path{
 		{
-			Pattern:      pathPrefix + framework.GenericNameRegex(nameKey) + "/sign",
+			Pattern:      jwtPathPrefix + framework.GenericNameRegex(nameKey) + "/sign",
 			HelpSynopsis: "Signs the nonce (challenge string) returned by NATS during authentication.",
 			Fields: map[string]*framework.FieldSchema{
 				nameKey: {Type: framework.TypeString},

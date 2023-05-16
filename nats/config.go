@@ -10,15 +10,6 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-const (
-	operatorName     = "operator"
-	sysAccountName   = "system_account"
-	sysAccountUser   = "system_account_user"
-	accountSrvURLKey = "account_jwt_server_url"
-	svcURLKey        = "service_url"
-	tagsKey          = "tags"
-)
-
 type NKeyWithToken struct {
 	PublicKey string `json:"public_key"`
 	JWT       string `json:"jwt"`
@@ -60,16 +51,22 @@ func (b *backend) readConfiguration(ctx context.Context, req *logical.Request, d
 		return nil, fmt.Errorf("client token empty")
 	}
 
-	operatorIdentity, err := b.readIdentity(ctx, req, operatorName)
+	operator, err := b.readIdentity(ctx, req, operatorName)
 	if err != nil {
 		return nil, err
 	}
-	operatorJWT, err := b.readJWT(ctx, req, operatorName)
+	if operator == nil {
+		return nil, fmt.Errorf("operator identity not found, plugin must be initialized by creating a config")
+	}
+	sysAccount, err := b.readIdentity(ctx, req, sysAccountName)
 	if err != nil {
 		return nil, err
+	}
+	if sysAccount == nil {
+		return nil, fmt.Errorf("system account identity not found, plugin must be initialized by creating a config")
 	}
 
-	sysAccountIdentity, err := b.readIdentity(ctx, req, sysAccountName)
+	operatorJWT, err := b.readJWT(ctx, req, operatorName)
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +77,12 @@ func (b *backend) readConfiguration(ctx context.Context, req *logical.Request, d
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			operatorIdentity.Name: NKeyWithToken{
-				PublicKey: operatorIdentity.PublicKey,
+			operator.Name: NKeyWithToken{
+				PublicKey: operator.PublicKey,
 				JWT:       operatorJWT,
 			},
-			sysAccountIdentity.Name: NKeyWithToken{
-				PublicKey: sysAccountIdentity.PublicKey,
+			sysAccount.Name: NKeyWithToken{
+				PublicKey: sysAccount.PublicKey,
 				JWT:       sysAccountJWT,
 			},
 		},
@@ -120,24 +117,23 @@ func (b *backend) saveConfiguration(ctx context.Context, req *logical.Request, d
 		}
 	}
 
+	user, err := b.readIdentity(ctx, req, sysAccountUser)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		if _, err = b.createIdentity(ctx, req, nkeys.PrefixByteUser, sysAccountUser); err != nil {
+			return nil, err
+		}
+	}
+
 	operatorJWT, err := b.createOperatorToken(ctx, req, data, operator, sysAccount)
 	if err != nil {
 		return nil, err
 	}
-
 	sysAccountJWT, err := b.createSysAccountToken(ctx, req, operator, sysAccount)
 	if err != nil {
 		return nil, err
-	}
-
-	userIdentity, err := b.readIdentity(ctx, req, sysAccountUser)
-	if err != nil {
-		return nil, err
-	}
-	if userIdentity == nil {
-		if _, err = b.createIdentity(ctx, req, nkeys.PrefixByteUser, sysAccountUser); err != nil {
-			return nil, err
-		}
 	}
 
 	return &logical.Response{

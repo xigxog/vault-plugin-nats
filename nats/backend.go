@@ -10,14 +10,6 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
-const pluginHelp = `
-The NATS secret engine for managing Operators, Accounts, and Users.
-`
-
-const (
-	pathPrefix = "jwt/"
-)
-
 type backend struct {
 	*framework.Backend
 }
@@ -25,9 +17,15 @@ type backend struct {
 var _ logical.Factory = Factory
 
 func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
-	backend, err := newBackend()
-	if err != nil {
-		return nil, err
+	backend := &backend{}
+	backend.Backend = &framework.Backend{
+		Help:        strings.TrimSpace(pluginHelp),
+		BackendType: logical.TypeLogical,
+		Paths: framework.PathAppend(
+			backend.configPaths(),
+			backend.jwtPaths(),
+			backend.signPaths(),
+		),
 	}
 
 	if conf == nil {
@@ -39,22 +37,6 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 	}
 
 	return backend, nil
-}
-
-func newBackend() (*backend, error) {
-	b := &backend{}
-
-	b.Backend = &framework.Backend{
-		Help:        strings.TrimSpace(pluginHelp),
-		BackendType: logical.TypeLogical,
-		Paths: framework.PathAppend(
-			b.configPaths(),
-			b.jwtPaths(),
-			b.signPaths(),
-		),
-	}
-
-	return b, nil
 }
 
 func (b *backend) handleExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {

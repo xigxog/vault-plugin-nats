@@ -10,13 +10,6 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-const (
-	nameKey    = "name"
-	typeKey    = "type"
-	accountKey = "account"
-	configKey  = "config"
-)
-
 func (b *backend) jwtPaths() []*framework.Path {
 	var accountTypes []interface{}
 	accountTypes = append(accountTypes, "account")
@@ -24,7 +17,7 @@ func (b *backend) jwtPaths() []*framework.Path {
 
 	return []*framework.Path{
 		{
-			Pattern:      pathPrefix + framework.GenericNameRegex(nameKey),
+			Pattern:      jwtPathPrefix + framework.GenericNameRegex(nameKey),
 			HelpSynopsis: "Generates a JWT for an identity.",
 			Fields: map[string]*framework.FieldSchema{
 				nameKey: {Type: framework.TypeString},
@@ -96,63 +89,59 @@ func (b *backend) createIdentityJWT(ctx context.Context, req *logical.Request, d
 	}, nil
 }
 
-func (b *backend) createAccountToken(ctx context.Context, req *logical.Request, data *framework.FieldData,
-	identity *Identity) (string, error) {
-
+func (b *backend) createAccountToken(ctx context.Context, req *logical.Request, data *framework.FieldData, account *Identity) (string, error) {
 	accountConfig := &jwt.Account{}
 	b.mapToStruct(data.Get(configKey), accountConfig)
 
-	issuer, err := b.readIdentity(ctx, req, "operator")
+	operator, err := b.readIdentity(ctx, req, operatorName)
 	if err != nil {
-		return "", fmt.Errorf("error reading operator identity. error=%w", err)
+		return "", fmt.Errorf("error reading operator identity: %w", err)
 	}
-	if issuer == nil {
+	if operator == nil {
 		return "", fmt.Errorf("operator identity not found")
 	}
 
-	keyPair, err := nkeys.FromSeed([]byte(issuer.Seed))
+	keyPair, err := nkeys.FromSeed([]byte(operator.Seed))
 	if err != nil {
-		return "", fmt.Errorf("failed to create key pair from seed: %w", err)
+		return "", fmt.Errorf("error creating key pair from seed: %w", err)
 	}
 
-	claims := jwt.NewAccountClaims(string(identity.PublicKey))
-	claims.Name = identity.Name
+	claims := jwt.NewAccountClaims(string(account.PublicKey))
+	claims.Name = account.Name
 	claims.Account = *accountConfig
 
 	token, err := claims.Encode(keyPair)
 	if err != nil {
-		return "", fmt.Errorf("failed to encode account claims: %w", err)
+		return "", fmt.Errorf("error encoding account claims: %w", err)
 	}
 
 	return token, nil
 }
 
-func (b *backend) createUserToken(ctx context.Context, req *logical.Request, data *framework.FieldData,
-	identity *Identity) (string, error) {
-
-	issuerName := data.Get(accountKey).(string)
-	if issuerName == "" {
-		return "", fmt.Errorf("must pass an account to sign the user token")
+func (b *backend) createUserToken(ctx context.Context, req *logical.Request, data *framework.FieldData, user *Identity) (string, error) {
+	accountName := data.Get(accountKey).(string)
+	if accountName == "" {
+		return "", fmt.Errorf("account must be provided to create user token")
 	}
 
 	userConfig := &jwt.User{}
 	b.mapToStruct(data.Get(configKey), userConfig)
 
-	issuer, err := b.readIdentity(ctx, req, issuerName)
+	account, err := b.readIdentity(ctx, req, accountName)
 	if err != nil {
-		return "", fmt.Errorf("error reading '%s' identity: %w", issuerName, err)
+		return "", fmt.Errorf("error reading account identity: %w", err)
 	}
-	if issuer == nil {
-		return "", fmt.Errorf("'%s' identity not found", issuerName)
+	if account == nil {
+		return "", fmt.Errorf("account identity not found")
 	}
 
-	keyPair, err := nkeys.FromSeed([]byte(issuer.Seed))
+	keyPair, err := nkeys.FromSeed([]byte(account.Seed))
 	if err != nil {
 		return "", err
 	}
 
-	claims := jwt.NewUserClaims(string(identity.PublicKey))
-	claims.Name = identity.Name
+	claims := jwt.NewUserClaims(string(user.PublicKey))
+	claims.Name = user.Name
 	claims.User = *userConfig
 
 	token, err := claims.Encode(keyPair)
@@ -164,11 +153,11 @@ func (b *backend) createUserToken(ctx context.Context, req *logical.Request, dat
 }
 
 func (b *backend) readJWT(ctx context.Context, req *logical.Request, name string) (string, error) {
-	path := fmt.Sprintf("%s%s", pathPrefix, name)
+	path := fmt.Sprintf("%s%s", jwtPathPrefix, name)
 
 	entry, err := req.Storage.Get(ctx, path)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error reading JWT: %w", err)
 	}
 	if entry == nil {
 		return "", nil
@@ -178,7 +167,7 @@ func (b *backend) readJWT(ctx context.Context, req *logical.Request, name string
 }
 
 func (b *backend) storeJWT(ctx context.Context, req *logical.Request, name string, token string) error {
-	path := fmt.Sprintf("%s%s", pathPrefix, name)
+	path := fmt.Sprintf("%s%s", jwtPathPrefix, name)
 
 	err := req.Storage.Put(ctx, &logical.StorageEntry{
 		Key:   path,
@@ -186,7 +175,7 @@ func (b *backend) storeJWT(ctx context.Context, req *logical.Request, name strin
 	})
 
 	if err != nil {
-		return fmt.Errorf("failed to store JWT for %s: %w", name, err)
+		return fmt.Errorf("error storing JWT: %w", err)
 	}
 
 	return nil
