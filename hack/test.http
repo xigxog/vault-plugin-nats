@@ -1,0 +1,74 @@
+# To use this file install the REST Client for Visual Studio Code:
+#   https://marketplace.visualstudio.com/items?itemName=humao.rest-client
+
+@base = http://127.0.0.1:8200/v1/nats
+@token = root
+
+### Create NATS Config
+POST {{base}}/config
+X-Vault-Token: {{token}}
+Content-Type: application/json
+
+{
+    "account-jwt-server-url": "nats://127.0.0.1:4222",
+    "service-url": "nats://test:4222",
+    "tag": "test,dusty"
+}
+
+### Get JWT for a new Account
+POST {{base}}/jwt/my_account
+X-Vault-Token: {{token}}
+Content-Type: application/json 
+
+{
+    "type": "account",
+    "config": {
+        "limits": {
+            "subs": -1,
+            "data": -1,
+            "payload": -1,
+            "imports": -1,
+            "exports": -1,
+            "wildcards": true,
+            "conn": -1,
+            "leaf": -1
+        },
+        "signing_keys": [],
+        "default_permissions": {
+            "pub": {
+                "allow": [
+                    "req.>",
+                    "res.>"
+                ]
+            },
+            "sub": {}
+        }
+    }
+}
+
+### Get JWT for a new User signed by our new account
+POST {{base}}/jwt/my_user
+X-Vault-Token: {{token}}
+Content-Type: application/json
+
+{
+    "type": "user",
+    "account": "my_account",
+    "config": {
+        "pub": {},
+        "sub": {},
+        "subs": -1,
+        "data": -1,
+        "payload": -1
+    }
+}
+
+### Sign a nonce using the User JWT
+POST {{base}}/jwt/my_user/sign
+X-Vault-Token: {{token}}
+Content-Type: application/json
+
+{
+    "signing_account": "my_account",
+    "nonce": "aN9-ZtS7taDoAZk"
+}
