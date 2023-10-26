@@ -1,4 +1,5 @@
-VAULT_VERSION := 1.14.1
+# Note: v1.14.x is last version before license change. Do not upgrade.
+VAULT_VERSION := 1.14.4
 GIT_REF := $(shell git symbolic-ref -q --short HEAD || git describe --tags --exact-match)
 
 TARGET_DIR := bin
@@ -16,13 +17,7 @@ push: image
 
 .PHONY: image
 image: bin
-	$(eval container=$(shell buildah from docker.io/hashicorp/vault:$(VAULT_VERSION)))
-	buildah run $(container) -- /bin/sh -c "\
-		apk add --no-cache jq && \
-		wget -O /usr/bin/kubectl "https://dl.k8s.io/release/$$(wget -q -O - https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
-		chmod +x /usr/bin/kubectl"
-	buildah add $(container) "$(TARGET_DIR)/*" "/xigxog/vault/plugins/"
-	buildah commit $(container) "$(IMAGE)"
+	buildah bud --build-arg VAULT_VERSION="$(VAULT_VERSION)" --tag "$(IMAGE)"
 
 .PHONY: bin
 bin: clean
