@@ -1,5 +1,7 @@
 # Vault NATS Secrets Engine
 
+[![build](https://github.com/xigxog/vault-plugin-nats/actions/workflows/build.yaml/badge.svg)](https://github.com/xigxog/vault-plugin-nats/actions/workflows/build.yaml)
+[![release](https://github.com/xigxog/vault-plugin-nats/actions/workflows/release.yaml/badge.svg)](https://github.com/xigxog/vault-plugin-nats/actions/workflows/release.yaml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/xigxog/vault-plugin-nats)](https://goreportcard.com/report/github.com/xigxog/vault-plugin-nats)
 
 This engine generates and manages NATS NKeys for Operators, Accounts, and Users.

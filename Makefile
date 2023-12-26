@@ -1,5 +1,5 @@
 # Note: v1.14.x is last version before license change. Do not upgrade.
-VAULT_VERSION := 1.14.4
+VAULT_VERSION := 1.14.8
 GIT_REF := $(shell git symbolic-ref -q --short HEAD || git describe --tags --exact-match)
 
 TARGET_DIR := bin
@@ -42,6 +42,8 @@ clean:
 	go clean
 	rm -rf $(TARGET_DIR)
 
-.PHONY: fmt
-fmt:
-	go fmt ./...
+.PHONY: tidy
+tidy:
+	go mod tidy
+	gofmt -l -s -w .
+	go vet ./...

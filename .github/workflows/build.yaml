@@ -1,0 +1,26 @@
+name: build
+
+on:
+  push:
+    branches:
+      - "*"
+
+jobs:
+  build:
+    name: Build plugin
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build binary
+        run: make
